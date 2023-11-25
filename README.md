@@ -30,7 +30,7 @@ ToDoApp is a simple yet powerful task management application for macOS. It's des
 ## Usage
 - **Add a Task**: Type in the text field and click "Add Task" to include a new task in your list.
 - **Toggle Task Completion**: Click the circle next to a task to mark it as complete or incomplete.
-- **Delete a Task**: Swipe on a task to reveal the delete option.
+- **Delete a Task**: Click the basket symbol next to a task to delete it.
 
 ## Contribution
 Contributions to enhance ToDoApp are highly encouraged. Whether it's bug reports, feature requests, or code contributions, all forms of collaboration are welcome. Feel free to open an issue or submit a pull request.
