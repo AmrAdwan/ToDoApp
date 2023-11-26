@@ -22,7 +22,8 @@ struct Task: Identifiable, Codable {
 struct ContentView: View {
     @AppStorage("Tasks") private var tasksData: String = ""
     @State private var newTaskDescription: String = ""
-
+    
+    // Convert tasksData into an array of Task objects
     private var tasks: [Task] {
         get {
             (try? JSONDecoder().decode([Task].self, from: Data(tasksData.utf8))) ?? []
@@ -31,35 +32,64 @@ struct ContentView: View {
             tasksData = (try? String(data: JSONEncoder().encode(newValue), encoding: .utf8)) ?? ""
         }
     }
-    
+
     var body: some View {
         VStack {
+            Text("My ToDo List")
+                .font(.title)
+                .fontWeight(.semibold)
+                .foregroundColor(.blue)
+                .padding(.top)
+
             TextField("Enter new task", text: $newTaskDescription)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
                 .padding()
+                .background(Color.gray.opacity(0.2))
+                .cornerRadius(8)
+                .padding(.horizontal)
 
-            Button("Add Task") {
-                addTask()
+            Button(action: addTask) {
+                Text("Add Task")
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
             }
-            .padding()
+            .background(Color.blue)
+            .padding(.horizontal) // Apply padding to the button itself
+            .cornerRadius(10)
+            .shadow(radius: 2)
 
-            List {
-                ForEach(tasks) { task in
-                    HStack {
-                        Text(task.description)
-                            .strikethrough(task.isCompleted, color: .gray)
-                        Spacer()
-                        Button(action: {
-                            toggleTaskCompletion(task.id)
-                        }) {
-                            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(task.isCompleted ? .green : .gray)
-                        }
+            ScrollView {
+                VStack(spacing: 4) {
+                    ForEach(tasks) { task in
+                        taskRow(for: task)
                     }
                 }
-                .onDelete(perform: deleteTask)
+                .padding(.horizontal) // Apply padding to match other elements
             }
         }
+        .padding(.horizontal)
+    }
+    
+    func taskRow(for task: Task) -> some View {
+        HStack {
+            Text(task.description)
+                .foregroundColor(task.isCompleted ? .gray : .black)
+                .strikethrough(task.isCompleted)
+            Spacer()
+            Button(action: { toggleTaskCompletion(task.id) }) {
+                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(task.isCompleted ? .green : .gray)
+            }
+            Button(action: { deleteTask(task) }) {
+                Image(systemName: "trash")
+                    .foregroundColor(.red)
+            }
+        }
+        .padding()
+        .background(Color(white: 0.98))
+        .cornerRadius(10)
+        .shadow(radius: 2)
     }
 
     func addTask() {
@@ -71,13 +101,11 @@ struct ContentView: View {
         }
     }
 
-
-    func deleteTask(at offsets: IndexSet) {
+    func deleteTask(_ taskToDelete: Task) {
         var updatedTasks = tasks
-        updatedTasks.remove(atOffsets: offsets)
+        updatedTasks.removeAll { $0.id == taskToDelete.id }
         saveTasks(updatedTasks)
     }
-
 
     func toggleTaskCompletion(_ taskId: UUID) {
         var updatedTasks = tasks
@@ -87,17 +115,8 @@ struct ContentView: View {
         }
     }
 
-
     func saveTasks(_ tasks: [Task]) {
         tasksData = (try? String(data: JSONEncoder().encode(tasks), encoding: .utf8)) ?? ""
-    }
-
-
-    func loadTasks() {
-        if let savedTasks = UserDefaults.standard.object(forKey: "Tasks") as? [String] {
-            // Update tasksData directly
-            tasksData = (try? String(data: JSONEncoder().encode(savedTasks), encoding: .utf8)) ?? ""
-        }
     }
 }
 
