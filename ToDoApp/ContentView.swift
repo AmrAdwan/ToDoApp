@@ -6,30 +6,59 @@
 //
 
 import SwiftUI
+import UserNotifications
+
+// Task Priority Enum
+enum TaskPriority: String, Codable, CaseIterable {
+    case high = "High"
+    case medium = "Medium"
+    case low = "Low"
+}
 
 struct Task: Identifiable, Codable {
     let id: UUID
     var description: String
     var isCompleted: Bool
-
-    init(id: UUID = UUID(), description: String, isCompleted: Bool = false) {
+    var priority: TaskPriority = .medium
+    var dueDate: Date?
+    
+    init(id: UUID = UUID(), description: String, isCompleted: Bool = false, priority: TaskPriority = .medium, dueDate: Date? = nil) {
         self.id = id
         self.description = description
         self.isCompleted = isCompleted
+        self.priority = priority
+        self.dueDate = dueDate
     }
 }
 
 struct ContentView: View {
-    @AppStorage("Tasks") private var tasksData: String = ""
+    @AppStorage("Tasks") private var tasksData: Data = Data()
     @State private var newTaskDescription: String = ""
+    @State private var selectedPriority: TaskPriority = .medium
+    @State private var dueDate: Date?
+    @State private var selectedFilter: TaskFilter = .all
+
+    enum TaskFilter {
+        case all, completed, incomplete
+    }
+
+    private var filteredTasks: [Task] {
+        switch selectedFilter {
+        case .all:
+            return tasks
+        case .completed:
+            return tasks.filter { $0.isCompleted }
+        case .incomplete:
+            return tasks.filter { !$0.isCompleted }
+        }
+    }
     
-    // Convert tasksData into an array of Task objects
     private var tasks: [Task] {
         get {
-            (try? JSONDecoder().decode([Task].self, from: Data(tasksData.utf8))) ?? []
+            (try? JSONDecoder().decode([Task].self, from: tasksData)) ?? []
         }
         set {
-            tasksData = (try? String(data: JSONEncoder().encode(newValue), encoding: .utf8)) ?? ""
+            tasksData = (try? JSONEncoder().encode(newValue)) ?? Data()
         }
     }
 
@@ -47,6 +76,21 @@ struct ContentView: View {
                 .cornerRadius(8)
                 .padding(.horizontal)
 
+            Picker("Priority", selection: $selectedPriority) {
+                ForEach(TaskPriority.allCases, id: \.self) {
+                    Text($0.rawValue)
+                }
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding()
+
+            DatePicker("Due Date", selection: Binding(
+                get: { self.dueDate ?? Date() },
+                set: { self.dueDate = $0 }
+            ), displayedComponents: .date)
+            .padding()
+
+
             Button(action: addTask) {
                 Text("Add Task")
                     .fontWeight(.semibold)
@@ -55,28 +99,46 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
             }
             .background(Color.blue)
-            .padding(.horizontal) // Apply padding to the button itself
             .cornerRadius(10)
             .shadow(radius: 2)
+            .padding(.horizontal)
+
+            Picker("Filter", selection: $selectedFilter) {
+                Text("All").tag(TaskFilter.all)
+                Text("Completed").tag(TaskFilter.completed)
+                Text("Incomplete").tag(TaskFilter.incomplete)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding()
 
             ScrollView {
                 VStack(spacing: 4) {
-                    ForEach(tasks) { task in
+                    ForEach(filteredTasks) { task in
                         taskRow(for: task)
                     }
                 }
-                .padding(.horizontal) // Apply padding to match other elements
+                .padding(.horizontal)
             }
         }
         .padding(.horizontal)
     }
-    
+
     func taskRow(for task: Task) -> some View {
         HStack {
-            Text(task.description)
-                .foregroundColor(task.isCompleted ? .gray : .black)
-                .strikethrough(task.isCompleted)
+            VStack(alignment: .leading) {
+                    Text(task.description)
+                        .foregroundColor(task.isCompleted ? .gray : .black)
+                        .strikethrough(task.isCompleted)
+                    if let dueDate = task.dueDate {
+                        Text("Due: \(dueDate, formatter: DateFormatter.taskDateFormat)")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+            }
             Spacer()
+            Text(task.priority.rawValue)
+                .font(.caption)
+                .foregroundColor(.purple)
             Button(action: { toggleTaskCompletion(task.id) }) {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(task.isCompleted ? .green : .gray)
@@ -92,32 +154,41 @@ struct ContentView: View {
         .shadow(radius: 2)
     }
 
+    // Method to add a new task
     func addTask() {
         if !newTaskDescription.isEmpty {
             var updatedTasks = tasks
-            updatedTasks.append(Task(description: newTaskDescription))
-            saveTasks(updatedTasks)
+            let newTask = Task(description: newTaskDescription, isCompleted: false, priority: selectedPriority, dueDate: dueDate)
+            updatedTasks.append(newTask)
+            tasksData = (try? JSONEncoder().encode(updatedTasks)) ?? Data()
             newTaskDescription = ""
+            dueDate = nil
         }
     }
 
+    // Method to delete a task
     func deleteTask(_ taskToDelete: Task) {
         var updatedTasks = tasks
         updatedTasks.removeAll { $0.id == taskToDelete.id }
-        saveTasks(updatedTasks)
+        tasksData = (try? JSONEncoder().encode(updatedTasks)) ?? Data()
     }
 
     func toggleTaskCompletion(_ taskId: UUID) {
         var updatedTasks = tasks
         if let index = updatedTasks.firstIndex(where: { $0.id == taskId }) {
             updatedTasks[index].isCompleted.toggle()
-            saveTasks(updatedTasks)
+            tasksData = (try? JSONEncoder().encode(updatedTasks)) ?? Data()
         }
     }
+}
 
-    func saveTasks(_ tasks: [Task]) {
-        tasksData = (try? String(data: JSONEncoder().encode(tasks), encoding: .utf8)) ?? ""
-    }
+// Date formatter extension
+extension DateFormatter {
+    static let taskDateFormat: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
 }
 
 struct ContentView_Previews: PreviewProvider {
