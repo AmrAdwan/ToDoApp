@@ -90,7 +90,6 @@ struct ContentView: View {
             ), displayedComponents: .date)
             .padding()
 
-
             Button(action: addTask) {
                 Text("Add Task")
                     .fontWeight(.semibold)
@@ -121,6 +120,15 @@ struct ContentView: View {
             }
         }
         .padding(.horizontal)
+        .onAppear {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { success, error in
+                if success {
+                    print("Authorization granted")
+                } else if let error = error {
+                    print(error.localizedDescription)
+                }
+            }
+        }
     }
 
     func taskRow(for task: Task) -> some View {
@@ -161,6 +169,7 @@ struct ContentView: View {
             let newTask = Task(description: newTaskDescription, isCompleted: false, priority: selectedPriority, dueDate: dueDate)
             updatedTasks.append(newTask)
             tasksData = (try? JSONEncoder().encode(updatedTasks)) ?? Data()
+            scheduleNotification(for: newTask) // Schedule notification
             newTaskDescription = ""
             dueDate = nil
         }
@@ -179,6 +188,21 @@ struct ContentView: View {
             updatedTasks[index].isCompleted.toggle()
             tasksData = (try? JSONEncoder().encode(updatedTasks)) ?? Data()
         }
+    }
+
+    func scheduleNotification(for task: Task) {
+        guard let dueDate = task.dueDate, !task.isCompleted else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Task Reminder"
+        content.body = task.description
+        content.sound = UNNotificationSound.default
+
+        let triggerDate = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
+
+        let request = UNNotificationRequest(identifier: task.id.uuidString, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
     }
 }
 
